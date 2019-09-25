@@ -1,0 +1,146 @@
+---
+- hosts: all
+  gather_facts: yes
+
+- hosts: k8s-master
+  gather_facts: yes
+  tasks: 
+
+  - name: set hostname
+    hostname:
+      name: master
+
+  - name: set /etc/hosts
+    blockinfile:
+      path: /etc/hosts
+      block: |
+        {{ hostvars['k8s-master']['ansible_facts']['ens3']['ipv4']['address'] }} k8s-master
+        {{ hostvars['k8s-worker']['ansible_facts']['ens3']['ipv4']['address'] }} k8s-worker
+
+  - name: create user vagrant
+    user:
+      name: vagrant
+
+  - name: install docker
+    apt:
+      name: docker.io
+      state: latest
+      update_cache: yes
+
+  - name: add k8s repo
+    apt_repository:
+      repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+      state: present
+  
+  - name: add k8s repo key
+    apt_key:
+      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      state: present
+
+  - name: install kubeadm
+    apt: 
+      name: kubeadm
+      update_cache: yes
+  
+  - name: install kubelet
+    apt: 
+      name: kubelet
+
+  - name: install kubectl
+    apt:
+      name: kubectl
+
+  - name: run kubeadm
+    command: kubeadm init --pod-network-cidr "192.168.0.0/16" --apiserver-advertise-address "{{ hostvars['k8s-master']['ansible_facts']['ens3']['ipv4']['address'] }}"
+    args: 
+      creates: /etc/kubernetes/admin.conf
+
+  - name: create /home/vagrant/.kube
+    file:
+      path: /home/vagrant/.kube
+      state: directory
+
+  - name: copy kube config
+    command: cp /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+    args:
+      creates: /home/vagrant/.kube/config
+
+  - name: chmod on kube config
+    file:
+      path: /home/vagrant/.kube/config
+      mode: 0755
+      owner: vagrant
+
+  - name: enable kubelet
+    systemd: 
+      name: kubelet
+      state: started
+      enabled: yes
+
+  #- name: setup rbac
+  #  command: kubectl --kubeconfig /home/vagrant/.kube/config apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
+  
+  - name: setup calico
+    command: kubectl --kubeconfig /home/vagrant/.kube/config apply -f https://docs.projectcalico.org/v3.9/manifests/calico.yaml
+
+- hosts: k8s-worker
+  gather_facts: yes
+  tasks:
+
+  - name: set hostname
+    hostname:
+      name: k8s-worker
+
+  - name: set /etc/hosts
+    blockinfile:
+      path: /etc/hosts
+      block: |
+        {{ hostvars['k8s-master']['ansible_facts']['ens3']['ipv4']['address'] }} k8s-master
+        {{ hostvars['k8s-worker']['ansible_facts']['ens3']['ipv4']['address'] }} k8s-worker
+        
+  - name: create user vagrant
+    user:
+      name: vagrant
+
+  - name: install docker
+    apt:
+      name: docker.io
+      state: latest
+      update_cache: yes
+
+  - name: add k8s repo
+    apt_repository:
+      repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+      state: present
+  
+  - name: add k8s repo key
+    apt_key:
+      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      state: present
+
+  - name: install kubeadm
+    apt: 
+      name: kubeadm
+      update_cache: yes
+  
+  - name: install kubelet
+    apt: 
+      name: kubelet
+
+  - name: install kubectl
+    apt:
+      name: kubectl
+
+  - name: enable kubelet
+    systemd: 
+      name: kubelet
+      state: started
+      enabled: yes
+
+  - name: k8s token
+    command: kubeadm token create --print-join-command
+    register: token
+    delegate_to: k8s-master
+
+  - name: join master
+    command: "{{ token.stdout }}"
