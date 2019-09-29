@@ -54,11 +54,13 @@ tower-cli config verify_ssl False
 
 #create workflow
 tower-cli organization create --name="Default"
-tower-cli project create --name k8s --organization "Default" --scm-type git --scm-url https://github.com/horni23/tf-awx-k8s.git --wait
+tower-cli project create --name k8s --organization "Default" --scm-type git --scm-url https://github.com/horni23/terraform-libvirt-awx.git --wait
 tower-cli inventory create --name="kubernetes" --description="k8s cluster" --organization=Default 
 tower-cli host create --name="k8s-master" --inventory="kubernetes"
 tower-cli host create --name="k8s-worker" --inventory="kubernetes"
 tower-cli credential create --name k8s --credential-type 1 --inputs='{"username": "root", "password": "pass123"}' --organization="Default"
-tower-cli job_template create --name=k8s-cluster --description="setup kubernetes cluster" --inventory="kubernetes" --project="k8s" --playbook="playbook.yml" --credential="k8s" --job-type=run --verbosity=verbose --forks=5
-tower-cli job launch --job-template="k8s-cluster"
+tower-cli job_template create --name=k8s-cluster --description="setup kubernetes cluster" --inventory="kubernetes" --project="k8s" --playbook="playbooks/k8s-cluster.yml" --credential="k8s" --job-type=run --verbosity=verbose --forks=5 --ask-credential-on-launch true
+#tower-cli job launch --job-template="k8s-cluster"
 
+#new awx cli
+#pip install "https://github.com/ansible/awx/archive/7.0.0.tar.gz#egg=awxkit&subdirectory=awxkit"
