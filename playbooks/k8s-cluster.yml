@@ -8,7 +8,7 @@
 
   - name: set hostname
     hostname:
-      name: master
+      name: k8s-master
 
   - name: set /etc/hosts
     blockinfile:
